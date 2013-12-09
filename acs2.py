@@ -6,7 +6,8 @@ class PipelineLocked(Exception):
 
 
 class Pipeline(object):
-    def __init__(self):
+    def __init__(self, name):
+        self.name = name
         self.current = None
         self.pending_release = False
 
@@ -25,21 +26,18 @@ class Pipeline(object):
         self.pending_release = True
 
     def __repr__(self):
-        return 'Pipeline(locked=%s)' % (self.current is not None)
-
-main_pipeline = Pipeline()
-bus_pipeline = Pipeline()
+        return "Pipeline('%s', locked=%s)" % (self.name, self.current is not None)
 
 
 class Operation(object):
     lock = []
     length = None
 
-    def __init__(self, length=None, release=True):
+    def __init__(self, lock=[], length=None):
         if length is not None:
             self.length = length
+        self.lock = self.lock[:] + lock
         self.pipeline = self.lock[0]
-        self.release = release
 
     def acquire_pipelines(self):
         while True:
@@ -63,45 +61,7 @@ class Operation(object):
         for i in xrange(self.length):
             if i == self.length - 1:
                 self.release_pipelines()
-            yield repr(self)
-
-
-class SampleOperation(Operation):
-    lock = [main_pipeline]
-    length = 1
-
-
-class CacheOperation(Operation):
-    lock = [bus_pipeline]
-    length = 8
-
-
-class MDOOperation(Operation):
-    lock = [main_pipeline]
-
-
-class UOOperation(Operation):
-    lock = [main_pipeline, bus_pipeline]
-
-
-def MDOCommand(length, cached):
-    if not cached:
-        for tick in CacheOperation():
-            yield tick
-    for tick in SampleOperation():
-        yield tick
-    for tick in MDOOperation(length):
-        yield tick
-
-
-def UOCommand(length, cached):
-    if not cached:
-        for tick in CacheOperation():
-            yield tick
-    for tick in SampleOperation():
-        yield tick
-    for tick in UOOperation(length):
-        yield tick
+            yield self
 
 
 class Scheduler(object):
@@ -115,34 +75,18 @@ class Scheduler(object):
     def start(self):
         ticknumber = 1
         while self.tasks:
-            # if ticknumber == 10:
-                # import ipdb; ipdb.set_trace()
-            results = []
+            # import pdb; pdb.set_trace()
+            # if ticknumber == 4:
+            #     import ipdb; ipdb.set_trace()
+            results = {}
             for task in self.tasks[:]:
                 try:
                     tick = next(task)
                     if tick is not None:
-                        results.append(tick)
+                        results[tick.pipeline.name] = tick
                 except StopIteration:
                     self.tasks.remove(task)
             map(Pipeline.release, self.pipelines)
             print ticknumber, results
             ticknumber += 1
             sleep(0.5)
-
-
-def main():
-    MDO = MDOCommand
-    UO_ = UOCommand
-
-    scheduler = Scheduler(main_pipeline, bus_pipeline)
-    scheduler.add(MDO(1, cached=True))
-    scheduler.add(MDO(2, cached=False))
-    scheduler.add(UO_(1, cached=True))
-    scheduler.add(UO_(2, cached=True))
-    scheduler.add(MDO(1, cached=False))
-    scheduler.add(MDO(2, cached=True))
-    scheduler.start()
-
-if __name__ == '__main__':
-    main()
