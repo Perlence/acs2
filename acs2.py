@@ -1,6 +1,4 @@
 from time import sleep
-from itertools import izip_longest
-from collections import namedtuple
 
 
 class PipelineLocked(Exception):
@@ -9,23 +7,25 @@ class PipelineLocked(Exception):
 
 class Pipeline(object):
     def __init__(self):
-        self.locked = False
-        self.pending_release = False
         self.current = None
+        self.pending_release = False
 
-    def acquire(self):
-        if self.locked:
+    def acquire(self, operation):
+        if self.current is None:
+            self.current = operation
+        elif self.current != operation:
             raise PipelineLocked
-        else:
-            self.locked = True
 
     def release(self):
         if self.pending_release:
-            self.locked = False
+            self.pending_release = False
+            self.current = None
 
     def release_after(self):
         self.pending_release = True
 
+    def __repr__(self):
+        return 'Pipeline(locked=%s)' % (self.current is not None)
 
 main_pipeline = Pipeline()
 bus_pipeline = Pipeline()
@@ -42,29 +42,28 @@ class Operation(object):
         self.release = release
 
     def acquire_pipelines(self):
-        for pipeline in self.lock:
-            pipeline.acquire()
+        while True:
+            try:
+                for pipeline in self.lock:
+                    pipeline.acquire(self)
+                return
+            except PipelineLocked:
+                yield
 
     def release_pipelines(self):
         for pipeline in self.lock:
             pipeline.release_after()
 
     def __repr__(self):
-        return '{}(length={})'.format(self.__class__.__name__, self.length)
+        return '%s(length=%s)' % (self.__class__.__name__, self.length)
 
     def __iter__(self):
-        while True:
-            try:
-                self.acquire_pipelines()
-                break
-            except PipelineLocked:
-                yield
+        for __ in self.acquire_pipelines():
+            yield
         for i in xrange(self.length):
-            self.pipeline.current = repr(self)
-            if i == self.length - 1 and self.release:
+            if i == self.length - 1:
                 self.release_pipelines()
             yield repr(self)
-            self.pipeline.current = None
 
 
 class SampleOperation(Operation):
@@ -99,31 +98,36 @@ def UOCommand(length, cached):
     if not cached:
         for tick in CacheOperation():
             yield tick
-    for tick in SampleOperation(release=False):
+    for tick in SampleOperation():
         yield tick
     for tick in UOOperation(length):
         yield tick
 
 
 class Scheduler(object):
-    def __init__(self):
+    def __init__(self, *pipelines):
+        self.pipelines = pipelines
         self.tasks = []
 
     def add(self, task):
         self.tasks.append(task)
 
     def start(self):
-        import pdb
+        ticknumber = 1
         while self.tasks:
-            # pdb.set_trace()
-            for task in iter(self.tasks):
+            # if ticknumber == 10:
+                # import ipdb; ipdb.set_trace()
+            results = []
+            for task in self.tasks[:]:
                 try:
                     tick = next(task)
+                    if tick is not None:
+                        results.append(tick)
                 except StopIteration:
                     self.tasks.remove(task)
-            main_pipeline.release()
-            bus_pipeline.release()
-            print main_pipeline.current, bus_pipeline.current
+            map(Pipeline.release, self.pipelines)
+            print ticknumber, results
+            ticknumber += 1
             sleep(0.5)
 
 
@@ -131,7 +135,7 @@ def main():
     MDO = MDOCommand
     UO_ = UOCommand
 
-    scheduler = Scheduler()
+    scheduler = Scheduler(main_pipeline, bus_pipeline)
     scheduler.add(MDO(1, cached=True))
     scheduler.add(MDO(2, cached=False))
     scheduler.add(UO_(1, cached=True))
