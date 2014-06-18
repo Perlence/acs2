@@ -8,7 +8,6 @@ BUS = Pipeline('BUS')
 
 class SampleOperation(Operation):
     lock = [CPU]
-    length = 1
     symbol = u'┴'
 
 

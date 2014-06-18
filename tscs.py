@@ -9,7 +9,6 @@ BUS = Pipeline('BUS')
 
 class SampleOperation(Operation):
     lock = []
-    length = 1
     symbol = u'┴'
 
 
@@ -26,6 +25,7 @@ class MDOOperation(Operation):
 
 class UOOperation(Operation):
     lock = []
+    length = 2
     symbol = u'╥'
 
 
@@ -45,7 +45,7 @@ def UOCommand(length, pipeline, cached):
             yield tick
     for tick in SampleOperation([pipeline]):
         yield tick
-    for tick in UOOperation([pipeline, BUS], length=length * 2):
+    for tick in UOOperation([pipeline, BUS], length=length):
         yield tick
 
 

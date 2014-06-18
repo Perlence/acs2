@@ -36,11 +36,12 @@ class Pipeline(object):
 
 class Operation(object):
     lock = []
-    length = None
+    length = 1
+    symbol = ''
 
-    def __init__(self, lock=None, length=None):
+    def __init__(self, lock=None, length=1):
         if length is not None:
-            self.length = length
+            self.length *= length
         if lock is not None:
             self.lock = lock
         self.pipeline = self.lock[0]
