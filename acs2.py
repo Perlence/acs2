@@ -76,28 +76,33 @@ class Scheduler(object):
         self.pipeline_names = [pipeline.name for pipeline in pipelines]
         self.tasks = []
 
-    def add(self, task):
-        self.tasks.append(task)
+    def add(self, *tasks):
+        self.tasks.extend(tasks)
 
     def start(self):
         ticknumber = 1
         graph = []
-        while self.tasks:
+        started = []
+        while started or self.tasks:
             results = OrderedDict.fromkeys(self.pipeline_names)
-            for task in self.tasks[:]:
+            # if ticknumber == 19:
+            #     self.display(graph)
+            #     import ipdb; ipdb.set_trace()
+            for task in started + self.tasks[:]:
                 try:
                     tick = next(task)
                     if tick is not None:
                         results[tick.pipeline.name] = tick
+                        if task not in started:
+                            self.tasks.remove(task)
+                            started.append(task)
                 except StopIteration:
-                    self.tasks.remove(task)
+                    started.remove(task)
             map(Pipeline.release, self.pipelines)
             graph.append(results.items())
             print('%3d' % ticknumber, *results.items())
             ticknumber += 1
-            # sleep(0.5)
         self.display(graph)
-        return graph
 
     def display(self, graph):
         for line in zip(*graph):
