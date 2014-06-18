@@ -15,7 +15,7 @@ class SampleOperation(Operation):
 
 class CacheOperation(Operation):
     lock = [BUS]
-    length = 8
+    length = 6
     symbol = u'╨'
 
 
@@ -45,7 +45,7 @@ def UOCommand(length, pipeline, cached):
             yield tick
     for tick in SampleOperation([pipeline]):
         yield tick
-    for tick in UOOperation([pipeline, BUS], length=length):
+    for tick in UOOperation([pipeline, BUS], length=length * 2):
         yield tick
 
 
@@ -54,13 +54,43 @@ def main():
     UO_ = UOCommand
 
     scheduler = Scheduler(ALU, FPU, BUS)
-    scheduler.add(MDO(2, FPU, cached=True))
-    scheduler.add(UO_(1, ALU, cached=False))
-    scheduler.add(MDO(1, ALU, cached=True))
-    scheduler.add(MDO(2, FPU, cached=False))
-    scheduler.add(MDO(2, FPU, cached=True))
-    scheduler.add(UO_(1, ALU, cached=True))
-    scheduler.add(MDO(1, ALU, cached=True))
+
+    scheduler.add(
+        MDO(2, FPU, cached=True),
+        UO_(1, ALU, cached=False),
+        MDO(1, ALU, cached=True),
+        MDO(2, FPU, cached=False),
+        MDO(2, FPU, cached=True),
+        UO_(1, ALU, cached=True),
+        MDO(1, ALU, cached=True))
+    scheduler.start()
+
+    scheduler.add(
+        MDO(1, ALU, cached=False),
+        UO_(2, FPU, cached=False),
+        UO_(1, ALU, cached=True),
+        MDO(1, FPU, cached=False),
+        MDO(1, FPU, cached=False),
+        UO_(1, ALU, cached=False),
+        MDO(2, ALU, cached=True),
+        UO_(1, FPU, cached=True),
+        UO_(2, ALU, cached=True),
+        MDO(1, FPU, cached=False))
+    scheduler.start()
+
+    scheduler.add(
+        MDO(1, FPU, cached=True),
+        UO_(2, ALU, cached=False),
+        UO_(1, ALU, cached=True),
+        MDO(1, FPU, cached=True),
+        MDO(1, ALU, cached=False),
+        UO_(1, FPU, cached=False),
+        MDO(2, ALU, cached=False),
+        UO_(1, FPU, cached=True),
+        MDO(2, ALU, cached=False),
+        UO_(1, FPU, cached=False),
+        UO_(2, ALU, cached=False),
+        MDO(1, FPU, cached=True))
     scheduler.start()
 
 if __name__ == '__main__':

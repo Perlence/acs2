@@ -53,13 +53,42 @@ def main():
     UO_ = UOCommand
 
     scheduler = Scheduler(CPU, BUS)
-    scheduler.add(MDO(1, cached=True))
-    scheduler.add(MDO(2, cached=False))
-    scheduler.add(UO_(1, cached=True))
-    scheduler.add(UO_(2, cached=True))
-    scheduler.add(MDO(1, cached=False))
-    scheduler.add(MDO(2, cached=True))
+
+    scheduler.add(
+        MDO(1, cached=True),
+        MDO(2, cached=False),
+        UO_(1, cached=True),
+        UO_(2, cached=True),
+        MDO(1, cached=False),
+        MDO(2, cached=True))
     scheduler.start()
+
+    scheduler.add(
+        UO_(1, cached=False),
+        UO_(2, cached=False),
+        UO_(1, cached=True),
+        MDO(1, cached=True),
+        MDO(1, cached=False),
+        UO_(1, cached=False),
+        MDO(2, cached=True),
+        UO_(1, cached=True),
+        MDO(2, cached=True),
+        MDO(1, cached=False))
+    scheduler.start()
+
+    scheduler.add(
+        MDO(1, cached=True),
+        UO_(2, cached=False),
+        UO_(1, cached=True),
+        MDO(1, cached=True),
+        MDO(1, cached=False),
+        UO_(1, cached=False),
+        MDO(2, cached=False),
+        UO_(1, cached=True),
+        MDO(2, cached=False),
+        UO_(1, cached=False))
+    scheduler.start()
+
 
 if __name__ == '__main__':
     main()
