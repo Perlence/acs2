@@ -1,4 +1,8 @@
+# -*- encoding: utf-8 -*-
+from __future__ import print_function
+
 from time import sleep
+from collections import OrderedDict
 
 
 class PipelineLocked(Exception):
@@ -10,6 +14,10 @@ class Pipeline(object):
         self.name = name
         self.current = None
         self.pending_release = False
+
+    def __repr__(self):
+        return ("Pipeline('%s', locked=%s)" %
+                (self.name, self.current is not None))
 
     def acquire(self, operation):
         if self.current is None:
@@ -25,19 +33,28 @@ class Pipeline(object):
     def release_after(self):
         self.pending_release = True
 
-    def __repr__(self):
-        return "Pipeline('%s', locked=%s)" % (self.name, self.current is not None)
-
 
 class Operation(object):
     lock = []
     length = None
 
-    def __init__(self, lock=[], length=None):
+    def __init__(self, lock=None, length=None):
         if length is not None:
             self.length = length
-        self.lock = self.lock[:] + lock
+        if lock is not None:
+            self.lock = lock
         self.pipeline = self.lock[0]
+
+    def __repr__(self):
+        return '%s(length=%s)' % (self.__class__.__name__, self.length)
+
+    def __iter__(self):
+        for __ in self.acquire_pipelines():
+            yield
+        for i in xrange(self.length):
+            if i == self.length - 1:
+                self.release_pipelines()
+            yield self
 
     def acquire_pipelines(self):
         while True:
@@ -52,21 +69,11 @@ class Operation(object):
         for pipeline in self.lock:
             pipeline.release_after()
 
-    def __repr__(self):
-        return '%s(length=%s)' % (self.__class__.__name__, self.length)
-
-    def __iter__(self):
-        for __ in self.acquire_pipelines():
-            yield
-        for i in xrange(self.length):
-            if i == self.length - 1:
-                self.release_pipelines()
-            yield self
-
 
 class Scheduler(object):
     def __init__(self, *pipelines):
         self.pipelines = pipelines
+        self.pipeline_names = [pipeline.name for pipeline in pipelines]
         self.tasks = []
 
     def add(self, task):
@@ -74,11 +81,9 @@ class Scheduler(object):
 
     def start(self):
         ticknumber = 1
+        graph = []
         while self.tasks:
-            # import pdb; pdb.set_trace()
-            # if ticknumber == 4:
-            #     import ipdb; ipdb.set_trace()
-            results = {}
+            results = OrderedDict.fromkeys(self.pipeline_names)
             for task in self.tasks[:]:
                 try:
                     tick = next(task)
@@ -87,6 +92,18 @@ class Scheduler(object):
                 except StopIteration:
                     self.tasks.remove(task)
             map(Pipeline.release, self.pipelines)
-            print ticknumber, results
+            graph.append(results.items())
+            print('%3d' % ticknumber, *results.items())
             ticknumber += 1
-            sleep(0.5)
+            # sleep(0.5)
+        self.display(graph)
+        return graph
+
+    def display(self, graph):
+        for line in zip(*graph):
+            for _, operation in line:
+                if operation is not None:
+                    print(operation.symbol, end='')
+                else:
+                    print(u'─', end='')
+            print(u'\n')

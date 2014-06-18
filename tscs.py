@@ -1,3 +1,4 @@
+# -*- encoding: utf-8 -*-
 from acs2 import Scheduler, Pipeline, Operation
 
 
@@ -9,19 +10,23 @@ BUS = Pipeline('BUS')
 class SampleOperation(Operation):
     lock = []
     length = 1
+    symbol = u'┴'
 
 
 class CacheOperation(Operation):
     lock = [BUS]
     length = 8
+    symbol = u'╨'
 
 
 class MDOOperation(Operation):
     lock = []
+    symbol = u'┬'
 
 
 class UOOperation(Operation):
-    lock = [BUS]
+    lock = []
+    symbol = u'╥'
 
 
 def MDOCommand(length, pipeline, cached):
@@ -40,7 +45,7 @@ def UOCommand(length, pipeline, cached):
             yield tick
     for tick in SampleOperation([pipeline]):
         yield tick
-    for tick in UOOperation([pipeline], length=length):
+    for tick in UOOperation([pipeline, BUS], length=length):
         yield tick
 
 
